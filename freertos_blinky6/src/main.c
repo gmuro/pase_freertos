@@ -52,12 +52,27 @@ typedef enum
 {
    MSG_ENCENDER_LED = 0,
    MSG_APAGAR_LED,
+   MSG_CAMBIAR_INTENSIDAD,
 }msgCmd_enum;
 
 typedef struct
 {
-   msgCmd_enum cmd;
    int32_t delay;
+}camposEncApa_type;
+
+typedef struct
+{
+   int32_t intensidad;
+}camposCamInt_type;
+
+typedef struct
+{
+   msgCmd_enum cmd;
+   union
+   {
+      camposEncApa_type camposEncApa;
+      camposCamInt_type camposCamInt;
+   }datos;
 }msgData_type;
 
 #define MSG_QUEUE_LENGTH   5
@@ -88,6 +103,8 @@ static void initHardware(void)
 static void task1(void * a)
 {
    msgData_type msg;
+   int32_t cont = 0;
+   int32_t intensidad = 0;
 
    while (1)
    {
@@ -100,9 +117,21 @@ static void task1(void * a)
       else
          msg.cmd = MSG_ENCENDER_LED;
 
-      msg.delay = 250;
+      msg.datos.camposEncApa.delay = 250;
 
       xQueueSend(xQueue, &msg, portMAX_DELAY);
+
+      cont++;
+      if (cont > 1000)
+      {
+         cont = 0;
+         intensidad += 10;
+
+         msg.cmd = MSG_CAMBIAR_INTENSIDAD;
+         msg.datos.camposCamInt = intensidad;
+         xQueueSend(xQueue, &msg, portMAX_DELAY);
+      }
+
 	}
 }
 
@@ -114,12 +143,21 @@ static void task2(void * a)
    {
       xQueueReceive(xQueue, &msg, portMAX_DELAY);
 
-      vTaskDelay(msg.delay / portTICK_RATE_MS);
+      switch (msg.cmd)
+      {
+         case MSG_ENCENDER_LED:
+            vTaskDelay(msg.datos.camposEncApa.delay / portTICK_RATE_MS);
+            Board_LED_Set(3, true);
+            break;
 
-      if (msg.cmd == MSG_ENCENDER_LED)
-         Board_LED_Set(3, true);
-      else
-         Board_LED_Set(3, false);
+         case MSG_APAGAR_LED:
+            vTaskDelay(msg.datos.camposEncApa.delay / portTICK_RATE_MS);
+            Board_LED_Set(3, false);
+            break;
+
+         case MSG_CAMBIAR_INTENSIDAD:
+            break;
+      }
    }
 }
 
